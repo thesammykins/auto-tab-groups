@@ -10,12 +10,39 @@ export const APPLE_MODEL_ID = "apple-system"
 export const APPLE_ORIGIN_PERMISSION = "http://127.0.0.1/*"
 const RULE_ID = 1976
 const ENDPOINT = "http://127.0.0.1:1976"
+const RULE_TIMEOUT_MS = 10000
 const START_SERVER = "Start fm serve --host 127.0.0.1 --port 1976 in Terminal."
 
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid response from Apple model server")
   return value as Record<string, unknown>
+}
+
+// Some Chromium-based browsers expose DNR but never settle rule updates.
+// Bound this separately from fetch so the popup can recover and report the cause.
+async function updateConnectionRule(
+  rules: Parameters<typeof browser.declarativeNetRequest.updateSessionRules>[0]
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      browser.declarativeNetRequest.updateSessionRules(rules),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(
+                "The browser did not finish updating the Apple connection rule. Reload the extension and retry. The local server may be running, but the browser connection is not ready."
+              )
+            ),
+          RULE_TIMEOUT_MS
+        )
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export class AppleFmProvider implements AiProviderInterface {
@@ -86,7 +113,7 @@ export class AppleFmProvider implements AiProviderInterface {
       // fm rejects browser Origin/Fetch-Metadata headers. Limit compatibility
       // strictly to this extension's POST to its fixed loopback completion endpoint;
       // web pages, other extensions and every other URL remain unaffected.
-      await browser.declarativeNetRequest.updateSessionRules({
+      await updateConnectionRule({
         removeRuleIds: [RULE_ID],
         addRules: [
           {
@@ -124,7 +151,7 @@ export class AppleFmProvider implements AiProviderInterface {
     this.status = "idle"
     this.error = null
     await browser.storage.session.set({ appleFmConnected: false })
-    await browser.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID] })
+    await updateConnectionRule({ removeRuleIds: [RULE_ID] })
   }
 
   async isConnected(): Promise<boolean> {

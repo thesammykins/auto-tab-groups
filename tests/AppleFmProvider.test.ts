@@ -9,6 +9,7 @@ const fetchMock = vi.fn()
 const models = () => new Response(JSON.stringify({ data: [{ id: "system" }] }))
 beforeEach(() => {
   vi.clearAllMocks()
+  mockBrowser.declarativeNetRequest.updateSessionRules.mockResolvedValue(undefined)
   provider = new AppleFmProvider()
   saved = {}
   vi.stubGlobal("fetch", fetchMock)
@@ -18,8 +19,34 @@ beforeEach(() => {
     Object.assign(saved, value)
   })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.useRealTimers()
+})
 describe("Apple built-in server", () => {
+  it("leaves loading when the browser stalls a rule update and allows retry", async () => {
+    vi.useFakeTimers()
+    let finishRule!: () => void
+    mockBrowser.declarativeNetRequest.updateSessionRules.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          finishRule = resolve
+        })
+    )
+    const first = provider.loadModel("apple-system")
+    const rejected = expect(first).rejects.toThrow("browser did not finish")
+    await vi.advanceTimersByTimeAsync(10000)
+    await rejected
+    expect(provider.getStatus()).toBe("error")
+    expect(fetchMock).not.toHaveBeenCalled()
+    finishRule()
+    await Promise.resolve()
+    expect(provider.getStatus()).toBe("error")
+    expect(saved.appleFmConnected).not.toBe(true)
+    fetchMock.mockResolvedValueOnce(models())
+    await provider.loadModel("apple-system")
+    expect(provider.getStatus()).toBe("ready")
+  })
   it("requires explicit localhost permission before making requests", async () => {
     mockBrowser.permissions.contains.mockResolvedValue(false)
     await expect(provider.loadModel("apple-system")).rejects.toThrow("localhost access")
