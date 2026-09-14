@@ -28,7 +28,7 @@ describe("Deferred grouping until first view", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
     tabGroupState.autoGroupingEnabled = true
     tabGroupState.deferGroupingUntilSeen = true
     mockBrowser.tabGroups.query.mockResolvedValue([])

@@ -90,6 +90,7 @@ class TabGroupServiceSimplified {
    * Handles a tab update - moves tab to correct group based on its current URL
    */
   async handleTabUpdate(tabId: number, forceGrouping = false): Promise<boolean> {
+    if (tabGroupState.groupByMode === "linked") return false
     if (!forceGrouping && !tabGroupState.autoGroupingEnabled) {
       return false
     }
@@ -811,6 +812,7 @@ class TabGroupServiceSimplified {
    * Groups all tabs in the current window
    */
   async groupAllTabs(): Promise<boolean> {
+    if (tabGroupState.groupByMode === "linked") return false
     if (!tabGroupState.autoGroupingEnabled) {
       return false
     }
@@ -856,6 +858,7 @@ class TabGroupServiceSimplified {
    * Manually groups all tabs (ignores auto-group setting but respects groupNewTabs)
    */
   async groupAllTabsManually(): Promise<boolean> {
+    if (tabGroupState.groupByMode === "linked") return false
     this.bulkOperationInProgress = true
     try {
       console.log(`[TabGroupService] Starting manual bulk grouping`)
@@ -906,7 +909,10 @@ class TabGroupServiceSimplified {
   /**
    * Ungroups all tabs in the current window
    */
-  async ungroupAllTabs(): Promise<boolean> {
+  async ungroupAllTabs(explicit = false): Promise<boolean> {
+    // Rule edits must not dissolve browsing groups. The Ungroup All action
+    // explicitly opts in; switching back to a rule mode uses that mode's rules.
+    if (tabGroupState.groupByMode === "linked" && !explicit) return false
     try {
       console.log(`[TabGroupService] Ungrouping all tabs`)
       const tabs = await browser.tabs.query({ currentWindow: true })
@@ -999,6 +1005,7 @@ class TabGroupServiceSimplified {
    * Check all groups against threshold and disband those below minimum
    */
   async checkAllGroupsThreshold(): Promise<void> {
+    if (tabGroupState.groupByMode === "linked") return
     try {
       if (!browser.tabGroups) return
 
@@ -1019,6 +1026,7 @@ class TabGroupServiceSimplified {
    * should not leave one behind in a window that happens not to be focused.
    */
   async ungroupSystemTabs(): Promise<boolean> {
+    if (tabGroupState.groupByMode === "linked") return false
     try {
       if (!browser.tabGroups) return false
 

@@ -186,7 +186,8 @@ describe("AiService", () => {
   describe("available models", () => {
     it("should return available models from provider", () => {
       const models = aiService.getAvailableModels()
-      expect(models).toHaveLength(1)
+      expect(models).toHaveLength(2)
+      expect(models[1].id).toBe("apple-system")
       expect(models[0].id).toBe("test-model")
     })
   })

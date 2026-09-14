@@ -30,6 +30,18 @@ const AVAILABLE_MODELS: readonly AiModelConfig[] = [
     displayName: "Phi-3.5 Mini 3.8B",
     sizeInMb: 2150,
     vramRequiredMb: 3672
+  },
+  {
+    id: "SmolLM2-360M-Instruct-q4f16_1-MLC",
+    displayName: "SmolLM2 360M (Experimental, lightweight)",
+    sizeInMb: 204,
+    vramRequiredMb: 377
+  },
+  {
+    id: "SmolLM2-135M-Instruct-q0f16-MLC",
+    displayName: "SmolLM2 135M (Experimental)",
+    sizeInMb: 270,
+    vramRequiredMb: 360
   }
 ] as const
 

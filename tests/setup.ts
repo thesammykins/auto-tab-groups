@@ -5,7 +5,13 @@ import { vi } from "vitest"
 
 // Mock the browser API globally
 const mockBrowser = {
+  declarativeNetRequest: { updateSessionRules: vi.fn().mockResolvedValue(undefined) },
+  permissions: {
+    contains: vi.fn().mockResolvedValue(false),
+    request: vi.fn().mockResolvedValue(false)
+  },
   tabs: {
+    create: vi.fn().mockResolvedValue({}),
     query: vi.fn().mockResolvedValue([]),
     get: vi.fn().mockResolvedValue({}),
     group: vi.fn().mockResolvedValue(1),
@@ -33,6 +39,10 @@ const mockBrowser = {
     }
   },
   storage: {
+    session: {
+      get: vi.fn().mockResolvedValue({}),
+      set: vi.fn().mockResolvedValue(undefined)
+    },
     local: {
       get: vi.fn().mockResolvedValue({}),
       set: vi.fn().mockResolvedValue(undefined)

@@ -8,11 +8,14 @@
  */
 
 import { saveAllStorage } from "../utils/storage"
+import { aiService } from "./ai/AiService"
+import { linkedTabService } from "./LinkedTabService"
 import { tabGroupService } from "./TabGroupService"
 import { tabGroupState } from "./TabGroupState"
 
 /** Command ids, mirrored in wxt.config.ts */
 export const COMMANDS = {
+  NEW_TAB_IN_GROUP: "new-tab-in-group",
   TOGGLE_AUTO_GROUPING: "toggle-auto-grouping",
   GROUP_ALL_TABS: "group-all-tabs",
   UNGROUP_ALL_TABS: "ungroup-all-tabs",
@@ -34,9 +37,13 @@ export async function handleCommand(command: string): Promise<boolean> {
   console.log(`[CommandService] Received command: ${command}`)
 
   switch (command) {
+    case COMMANDS.NEW_TAB_IN_GROUP:
+      await linkedTabService.newTabInGroup()
+      return true
     case COMMANDS.TOGGLE_AUTO_GROUPING: {
+      await linkedTabService.clearPending()
       tabGroupState.autoGroupingEnabled = !tabGroupState.autoGroupingEnabled
-      await saveAllStorage(tabGroupState.getStorageData())
+      await saveAllStorage({ ...tabGroupState.getStorageData(), ...aiService.getSettings() })
 
       if (tabGroupState.autoGroupingEnabled) {
         await tabGroupService.groupAllTabs()
@@ -49,7 +56,8 @@ export async function handleCommand(command: string): Promise<boolean> {
       return true
 
     case COMMANDS.UNGROUP_ALL_TABS:
-      await tabGroupService.ungroupAllTabs()
+      await linkedTabService.clearPending()
+      await tabGroupService.ungroupAllTabs(true)
       return true
 
     case COMMANDS.TOGGLE_COLLAPSE:

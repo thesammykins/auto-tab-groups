@@ -26,7 +26,7 @@ describe("Protected groups", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
     tabGroupState.autoGroupingEnabled = true
     mockBrowser.tabGroups.query.mockResolvedValue([])
     mockBrowser.tabs.group.mockResolvedValue(100)
@@ -37,7 +37,11 @@ describe("Protected groups", () => {
   })
 
   function protect(...titles: string[]): void {
-    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, protectedGroupTitles: titles })
+    tabGroupState.updateFromStorage({
+      ...DEFAULT_STATE,
+      groupByMode: "domain",
+      protectedGroupTitles: titles
+    })
     tabGroupState.autoGroupingEnabled = true
   }
 
@@ -93,6 +97,7 @@ describe("Protected groups", () => {
       protect("Shopping")
       tabGroupState.updateFromStorage({
         ...DEFAULT_STATE,
+        groupByMode: "domain",
         protectedGroupTitles: ["Shopping"],
         customRules: {
           "rule-1": {

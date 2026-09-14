@@ -18,7 +18,7 @@ import { tabGroupService } from "../services/TabGroupService"
 describe("TabGroupService", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
   })
 
   afterEach(() => {
@@ -698,7 +698,11 @@ describe("TabGroupService", () => {
   describe("pinned tabs handling - comprehensive", () => {
     beforeEach(() => {
       vi.clearAllMocks()
-      tabGroupState.updateFromStorage({ ...DEFAULT_STATE, autoGroupingEnabled: true })
+      tabGroupState.updateFromStorage({
+        ...DEFAULT_STATE,
+        groupByMode: "domain",
+        autoGroupingEnabled: true
+      })
     })
 
     describe("handleTabUpdate with pinned tabs", () => {
@@ -973,6 +977,7 @@ describe("TabGroupService", () => {
       vi.clearAllMocks()
       tabGroupState.updateFromStorage({
         ...DEFAULT_STATE,
+        groupByMode: "domain",
         autoGroupingEnabled: true,
         openTabNextToCurrent: true
       })
@@ -1267,7 +1272,11 @@ describe("TabGroupService", () => {
   describe("concurrent processing guard", () => {
     beforeEach(() => {
       vi.clearAllMocks()
-      tabGroupState.updateFromStorage({ ...DEFAULT_STATE, autoGroupingEnabled: true })
+      tabGroupState.updateFromStorage({
+        ...DEFAULT_STATE,
+        groupByMode: "domain",
+        autoGroupingEnabled: true
+      })
     })
 
     it("should skip second handleTabUpdate while first is still processing", async () => {

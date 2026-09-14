@@ -7,7 +7,7 @@ import type { AiGroupSuggestion } from "./ai-messages"
 /**
  * Supported AI provider backends
  */
-export type AiProvider = "webllm" | "external"
+export type AiProvider = "webllm" | "external" | "apple"
 
 /**
  * AI model loading state machine: idle → loading → ready (or error)

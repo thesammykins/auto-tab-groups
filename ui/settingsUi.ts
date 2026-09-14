@@ -171,6 +171,22 @@ function updateCollapseDelayVisibility(enabled: boolean): void {
 
 // Update group by toggle UI
 function updateGroupByToggle(mode: string): void {
+  const linked = mode === "linked"
+  groupButton.disabled = linked
+  groupButton.title = linked ? "Linked tabs groups new links as you open them." : ""
+  for (const input of [
+    systemGroupToggle,
+    groupNewTabsToggle,
+    minimumTabsInput,
+    openTabNextToCurrentToggle,
+    deferGroupingToggle
+  ]) {
+    input.closest(".toggle-container")?.classList.toggle("hidden", linked)
+  }
+  document.querySelector(".linked-tab-help")?.classList.toggle("hidden", !linked)
+  document
+    .querySelector('[data-i18n="settingDeferGroupingHelp"]')
+    ?.classList.toggle("hidden", linked)
   groupByToggleOptions.forEach(option => {
     option.classList.remove("active")
     if (option.dataset.value === mode) {
@@ -1135,6 +1151,7 @@ async function initializeAiSection(): Promise<void> {
       webGpu?: { available: boolean; reason: string | null }
     }>({ action: "checkWebGpuSupport" })
 
+    aiWebGpuWarning.classList.remove("visible")
     if (webGpuResponse?.webGpu && !webGpuResponse.webGpu.available) {
       aiWebGpuWarning.classList.add("visible")
       aiWebGpuWarning.textContent =
@@ -1166,6 +1183,15 @@ function updateAiModelStatus(modelStatus: {
   error: string | null
 }): void {
   const { status, progress, error } = modelStatus
+  const apple = aiModelSelect.value === "apple-system"
+  const connectionMessage = document.getElementById("aiConnectionMessage")
+  if (connectionMessage)
+    connectionMessage.textContent =
+      error ||
+      (apple
+        ? "Run fm serve --host 127.0.0.1 --port 1976 in Terminal, then Connect. New linked groups get AI names from their titles and hostnames. No page text is read."
+        : "")
+  document.querySelector('[data-i18n="aiDownloadNote"]')?.classList.toggle("hidden", apple)
 
   // Update status badge
   aiStatusBadge.textContent =
@@ -1192,7 +1218,7 @@ function updateAiModelStatus(modelStatus: {
 
   // Update load button
   if (status === "ready") {
-    aiLoadButton.textContent = t("aiUnloadModel", "Unload Model")
+    aiLoadButton.textContent = apple ? "Disconnect" : t("aiUnloadModel", "Unload Model")
     aiLoadButton.classList.add("unload")
     aiLoadButton.disabled = false
     aiModelSelect.disabled = true
@@ -1205,7 +1231,7 @@ function updateAiModelStatus(modelStatus: {
     aiSuggestButton.disabled = true
     startAiStatusPolling()
   } else if (status === "error") {
-    aiLoadButton.textContent = t("aiRetryLoad", "Retry Load")
+    aiLoadButton.textContent = apple ? "Retry connection" : t("aiRetryLoad", "Retry Load")
     aiLoadButton.classList.remove("unload")
     aiLoadButton.disabled = false
     aiModelSelect.disabled = false
@@ -1215,7 +1241,7 @@ function updateAiModelStatus(modelStatus: {
       console.error("AI model error:", error)
     }
   } else {
-    aiLoadButton.textContent = t("aiLoadModel", "Load Model")
+    aiLoadButton.textContent = apple ? "Connect" : t("aiLoadModel", "Load Model")
     aiLoadButton.classList.remove("unload")
     aiLoadButton.disabled = false
     aiModelSelect.disabled = false
@@ -1465,11 +1491,31 @@ aiEnabledToggle?.addEventListener("change", async () => {
 
 aiModelSelect?.addEventListener("change", async () => {
   await sendMessage({ action: "setAiModelId", modelId: aiModelSelect.value })
+  await initializeAiSection()
 })
 
 aiSuggestButton?.addEventListener("click", handleSuggestGroups)
 
 aiLoadButton?.addEventListener("click", async () => {
+  if (aiModelSelect.value === "apple-system" && !aiLoadButton.classList.contains("unload")) {
+    try {
+      const granted = await browser.permissions.request({
+        origins: ["http://127.0.0.1/*"],
+        permissions: ["declarativeNetRequestWithHostAccess"]
+      })
+      if (!granted) {
+        updateAiModelStatus({
+          status: "error",
+          progress: 0,
+          error: "Localhost permission was not granted."
+        })
+        return
+      }
+    } catch (error) {
+      updateAiModelStatus({ status: "error", progress: 0, error: String(error) })
+      return
+    }
+  }
   const response = await sendMessage<{
     modelStatus?: { status: string; progress: number; error: string | null }
   }>({ action: "getAiModelStatus" })
@@ -1544,4 +1590,8 @@ async function loadCachedSuggestions(): Promise<void> {
 i18nReady.then(() => {
   loadCachedSuggestions()
   loadCustomRules()
+})
+
+document.getElementById("newTabInGroupBtn")?.addEventListener("click", () => {
+  sendMessage({ action: "newTabInGroup" })
 })

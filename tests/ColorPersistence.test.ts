@@ -27,7 +27,7 @@ describe("Color Persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     colorMappingState = {}
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
 
     // Spy on the shared WXT storage item's getValue/setValue
     vi.spyOn(groupColorMapping, "getValue").mockImplementation(
@@ -165,6 +165,7 @@ describe("Color Persistence", () => {
       // Set up a custom rule with red color
       tabGroupState.updateFromStorage({
         ...DEFAULT_STATE,
+        groupByMode: "domain",
         autoGroupingEnabled: true,
         customRules: {
           "rule-1": {
@@ -211,6 +212,7 @@ describe("Color Persistence", () => {
       // Set up custom rule with specific color
       tabGroupState.updateFromStorage({
         ...DEFAULT_STATE,
+        groupByMode: "domain",
         customRules: {
           "rule-1": {
             id: "rule-1",

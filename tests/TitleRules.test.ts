@@ -42,6 +42,7 @@ describe("Rules matching the page title", () => {
   function setupRules(rules: Record<string, CustomRule>): void {
     tabGroupState.updateFromStorage({
       ...DEFAULT_STATE,
+      groupByMode: "domain",
       autoGroupingEnabled: true,
       customRules: rules
     })
@@ -49,7 +50,7 @@ describe("Rules matching the page title", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
     mockBrowser.tabGroups.query.mockResolvedValue([])
     mockBrowser.tabs.group.mockResolvedValue(50)
   })

@@ -17,6 +17,7 @@ import {
 } from "../services"
 import { handleCommand } from "../services/CommandService"
 import { seedProtectedGroupsOnFirstRun } from "../services/FirstRunService"
+import { linkedTabService } from "../services/LinkedTabService"
 import {
   parseAiRuleResponse,
   parseAiSuggestionResponse,
@@ -34,11 +35,21 @@ import { cachedAiSuggestions, loadAllStorage, saveAllStorage } from "../utils/st
 export default defineBackground(() => {
   // State initialization flag to ensure it only happens once per service worker instance
   let stateInitialized = false
+  let initialization: Promise<void> | undefined
 
   /**
    * Ensures state is loaded from storage (SSOT) before any operations
    */
-  async function ensureStateLoaded(): Promise<void> {
+  function ensureStateLoaded(): Promise<void> {
+    if (!initialization)
+      initialization = initializeState().catch(error => {
+        initialization = undefined
+        throw error
+      })
+    return initialization
+  }
+
+  async function initializeState(): Promise<void> {
     if (!stateInitialized) {
       try {
         console.log("Service worker starting - loading state from storage...")
@@ -65,7 +76,7 @@ export default defineBackground(() => {
    * Save current state to storage
    */
   async function saveState(): Promise<void> {
-    await saveAllStorage(tabGroupState.getStorageData())
+    await saveAllStorage({ ...tabGroupState.getStorageData(), ...aiService.getSettings() })
   }
 
   // Always load state when service worker starts - SSOT from browser storage
@@ -75,7 +86,7 @@ export default defineBackground(() => {
         // Initialize context menus
         await contextMenuService.initialize()
 
-        if (tabGroupState.autoGroupingEnabled) {
+        if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
           console.log("Auto-grouping is enabled, grouping existing tabs...")
           await tabGroupService.groupAllTabs()
         } else {
@@ -109,13 +120,19 @@ export default defineBackground(() => {
         let result: Record<string, unknown>
 
         switch (msg.action) {
+          case "newTabInGroup":
+            await linkedTabService.newTabInGroup()
+            result = { success: true }
+            break
+
           case "group":
             await tabGroupService.groupAllTabsManually()
             result = { success: true }
             break
 
           case "ungroup":
-            await tabGroupService.ungroupAllTabs()
+            await linkedTabService.clearPending()
+            await tabGroupService.ungroupAllTabs(true)
             result = { success: true }
             break
 
@@ -161,10 +178,11 @@ export default defineBackground(() => {
 
           case "getOnlyApplyToNewTabs":
           case "toggleAutoGroup":
+            await linkedTabService.clearPending()
             tabGroupState.autoGroupingEnabled = msg.enabled
             await saveState()
 
-            if (tabGroupState.autoGroupingEnabled) {
+            if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
               await tabGroupService.groupAllTabs()
             }
             result = { enabled: tabGroupState.autoGroupingEnabled }
@@ -174,7 +192,7 @@ export default defineBackground(() => {
             tabGroupState.groupNewTabs = msg.enabled
             await saveState()
 
-            if (tabGroupState.autoGroupingEnabled) {
+            if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
               if (msg.enabled) {
                 // When enabled, group new/empty tabs into System
                 await tabGroupService.groupAllTabs()
@@ -195,7 +213,7 @@ export default defineBackground(() => {
             await saveState()
 
             if (msg.enabled) {
-              if (tabGroupState.autoGroupingEnabled) {
+              if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
                 await tabGroupService.groupAllTabs()
               }
             } else {
@@ -211,10 +229,13 @@ export default defineBackground(() => {
             break
 
           case "setGroupByMode":
+            if (!["linked", "domain", "subdomain", "rules-only"].includes(msg.mode))
+              throw new Error("Invalid grouping mode")
+            await linkedTabService.clearPending()
             tabGroupState.groupByMode = msg.mode
             await saveState()
 
-            if (tabGroupState.autoGroupingEnabled) {
+            if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
               await tabGroupService.ungroupAllTabs()
               await tabGroupService.groupTabsWithRules()
             }
@@ -229,7 +250,7 @@ export default defineBackground(() => {
             tabGroupState.minimumTabsForGroup = msg.minimumTabs || 1
             await saveState()
 
-            if (tabGroupState.autoGroupingEnabled) {
+            if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
               // First check existing groups against new threshold and disband if needed
               await tabGroupService.checkAllGroupsThreshold()
               // Then re-group tabs with the new threshold
@@ -359,7 +380,7 @@ export default defineBackground(() => {
             await saveState()
 
             // The group is fair game again — pick it up on the next pass
-            if (tabGroupState.autoGroupingEnabled) {
+            if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
               await tabGroupService.groupAllTabs()
             }
             result = { titles: tabGroupState.protectedGroupTitles }
@@ -393,7 +414,7 @@ export default defineBackground(() => {
               console.log("[Background] Rule added successfully with ID:", ruleId)
               result = { success: true, ruleId }
 
-              if (tabGroupState.autoGroupingEnabled) {
+              if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
                 if (msg.ruleData?.isBlacklist) {
                   // Blacklist rules need to ungroup currently grouped tabs that match
                   await tabGroupService.ungroupAllTabs()
@@ -412,7 +433,7 @@ export default defineBackground(() => {
               await rulesService.updateRule(msg.ruleId, msg.ruleData)
               result = { success: true }
 
-              if (tabGroupState.autoGroupingEnabled) {
+              if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
                 await tabGroupService.ungroupAllTabs()
                 await tabGroupService.groupTabsWithRules()
               }
@@ -428,7 +449,7 @@ export default defineBackground(() => {
               await rulesService.deleteRule(msg.ruleId)
               result = { success: true }
 
-              if (tabGroupState.autoGroupingEnabled) {
+              if (tabGroupState.autoGroupingEnabled && tabGroupState.groupByMode !== "linked") {
                 await tabGroupService.ungroupAllTabs()
                 await tabGroupService.groupTabsWithRules()
               }
@@ -859,6 +880,12 @@ export default defineBackground(() => {
   // Tab event listeners
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     try {
+      await ensureStateLoaded()
+      if (tabGroupState.groupByMode === "linked") {
+        await linkedTabService.onUpdated(tabId)
+        if (Object.hasOwn(changeInfo, "groupId")) await linkedTabService.cleanup()
+        return
+      }
       console.log(`[tabs.onUpdated] Tab ${tabId} updated:`, changeInfo)
       if (changeInfo.url) {
         console.log(`[tabs.onUpdated] URL changed to: ${changeInfo.url}`)
@@ -884,6 +911,11 @@ export default defineBackground(() => {
 
   browser.tabs.onCreated.addListener(async tab => {
     try {
+      await ensureStateLoaded()
+      if (tabGroupState.groupByMode === "linked") {
+        await linkedTabService.onCreated(tab)
+        return
+      }
       console.log(`[tabs.onCreated] Tab ${tab.id} created with URL: ${tab.url}`)
       if (tab.id) {
         tabGroupService.markAsNewTab(tab.id)
@@ -919,6 +951,11 @@ export default defineBackground(() => {
       console.log(`[tabs.onRemoved] Tab ${tabId} removed`)
       await ensureStateLoaded()
 
+      if (tabGroupState.groupByMode === "linked") {
+        await linkedTabService.cleanup(tabId)
+        return
+      }
+
       // Check if any groups now fall below the minimum tabs threshold
       if (tabGroupState.autoGroupingEnabled) {
         // Small delay to allow browser to fully update tab counts (needed for Firefox)
@@ -937,6 +974,11 @@ export default defineBackground(() => {
   browser.tabs.onMoved.addListener(async tabId => {
     try {
       await ensureStateLoaded()
+
+      if (tabGroupState.groupByMode === "linked") {
+        await linkedTabService.onUpdated(tabId)
+        return
+      }
 
       // Skip tabs already in a group — this move was likely triggered by
       // our own tabs.group() call. Re-triggering handleTabUpdate here
@@ -999,6 +1041,8 @@ export default defineBackground(() => {
       try {
         await ensureStateLoaded()
 
+        await linkedTabService.onGroupUpdated(group)
+        if (tabGroupState.groupByMode === "linked") return
         const domain = await tabGroupService.getGroupDomain(group.id)
         if (!domain) return
 
@@ -1015,6 +1059,10 @@ export default defineBackground(() => {
       try {
         console.log(`[tabGroups.onRemoved] Group ${group.id} was removed`)
         await ensureStateLoaded()
+        if (tabGroupState.groupByMode === "linked") {
+          await linkedTabService.cleanup()
+          return
+        }
         // Small delay to let browser fully remove the group before re-querying
         await new Promise(resolve => setTimeout(resolve, 100))
         const { tabSortService } = await import("../services/TabSortService")

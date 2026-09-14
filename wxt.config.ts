@@ -44,6 +44,7 @@ export default defineConfig({
       // picks keys. Opting in is the user's move, and no existing shortcut of
       // theirs gets taken.
       commands: {
+        "new-tab-in-group": { description: "Open a new tab in the current group" },
         _execute_action: {
           description: "__MSG_commandOpenPopup__"
         },
@@ -73,6 +74,8 @@ export default defineConfig({
     if (browser === "chrome") {
       return {
         ...baseManifest,
+        optional_permissions: ["declarativeNetRequestWithHostAccess"],
+        optional_host_permissions: ["http://127.0.0.1/*"],
         // 'wasm-unsafe-eval' required for WebLLM: @mlc-ai/web-llm uses WebAssembly for model inference
         content_security_policy: {
           extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

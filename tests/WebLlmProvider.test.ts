@@ -51,9 +51,21 @@ describe("WebLlmProvider", () => {
   })
 
   describe("getAvailableModels", () => {
-    it("should return 3 available models", () => {
+    it("only offers IDs supported by the installed WebLLM runtime", async () => {
+      const { prebuiltAppConfig } =
+        await vi.importActual<typeof import("@mlc-ai/web-llm")>("@mlc-ai/web-llm")
+      const supported = new Set(prebuiltAppConfig.model_list.map(model => model.model_id))
+      for (const model of webLlmProvider.getAvailableModels())
+        expect(supported.has(model.id)).toBe(true)
+    })
+    it("should include both lightweight SmolLM2 variants", () => {
       const models = webLlmProvider.getAvailableModels()
-      expect(models).toHaveLength(3)
+      expect(models.map(model => model.id)).toEqual(
+        expect.arrayContaining([
+          "SmolLM2-360M-Instruct-q4f16_1-MLC",
+          "SmolLM2-135M-Instruct-q0f16-MLC"
+        ])
+      )
     })
 
     it("should include Qwen2.5 3B as first model (recommended)", () => {

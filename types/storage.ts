@@ -8,7 +8,7 @@ import type { CustomRule, TabGroupColor } from "./rules"
 /**
  * Group-by mode options
  */
-export type GroupByMode = "rules-only" | "domain" | "subdomain"
+export type GroupByMode = "rules-only" | "domain" | "subdomain" | "linked"
 
 /**
  * Rule matching mode options
@@ -46,7 +46,7 @@ export interface StorageSchema {
   groupNewTabs: boolean
   /** Whether the "System" group exists at all (off = system tabs stay ungrouped) */
   systemGroupEnabled: boolean
-  /** How to group tabs: by rules only, domain, or subdomain */
+  /** How to group tabs: linked browsing, rules only, domain, or subdomain */
   groupByMode: GroupByMode
   /** Custom rules for grouping specific domains */
   customRules: CustomRulesMapping
@@ -98,7 +98,7 @@ export const DEFAULT_STATE: StorageSchema = {
   autoGroupingEnabled: true,
   groupNewTabs: true,
   systemGroupEnabled: true,
-  groupByMode: "domain",
+  groupByMode: "linked",
   customRules: {},
   ruleMatchingMode: "exact",
   groupColorMapping: {},

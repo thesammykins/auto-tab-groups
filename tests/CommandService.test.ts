@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { aiService } from "../services/ai/AiService"
 import { tabGroupState } from "../services/TabGroupState"
 import { DEFAULT_STATE } from "../types/storage"
 
@@ -100,4 +101,15 @@ describe("CommandService", () => {
     expect(toggleAllGroupsCollapse).not.toHaveBeenCalled()
     expect(saveAllStorage).not.toHaveBeenCalled()
   })
+})
+
+it("preserves AI preferences when an unrelated keyboard toggle saves state", async () => {
+  const settings = { aiEnabled: true, aiProvider: "apple" as const, aiModelId: "apple-system" }
+  const spy = vi.spyOn(aiService, "getSettings").mockReturnValue(settings)
+  try {
+    await handleCommand(COMMANDS.TOGGLE_AUTO_GROUPING)
+    expect(saveAllStorage).toHaveBeenCalledWith(expect.objectContaining(settings))
+  } finally {
+    spy.mockRestore()
+  }
 })

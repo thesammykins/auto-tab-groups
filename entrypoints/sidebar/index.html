@@ -64,10 +64,15 @@
           <div class="toggle-container">
             <span data-i18n="settingGroupBy">Group by</span>
             <div class="group-by-toggle-bar">
+              <button class="toggle-option" data-value="linked">Linked tabs</button>
               <button class="toggle-option" data-value="rules-only" data-i18n="settingGroupByRulesOnly">Rules only</button>
               <button class="toggle-option active" data-value="domain" data-i18n="settingGroupByDomain">Domain</button>
               <button class="toggle-option" data-value="subdomain" data-i18n="settingGroupBySubdomain">Sub-domain</button>
             </div>
+          </div>
+          <div class="linked-tab-help">
+            <p>Linked tabs keeps new links with their source. Rename a group to keep it.</p>
+            <button id="newTabInGroupBtn" type="button">New tab in current group</button>
           </div>
           <div class="toggle-container">
             <span data-i18n="settingSystemGroupEnabled">Group browser pages under "System"</span>
@@ -227,7 +232,8 @@
                 <div class="ai-progress-fill" id="aiProgressFill"></div>
               </div>
               <button id="aiLoadButton" class="button ai-load-button" data-i18n="aiLoadModel">Load Model</button>
-              <div class="ai-webgpu-warning" id="aiWebGpuWarning" data-i18n="aiWebGpuUnavailable">
+              <div id="aiConnectionMessage" class="help-text" role="status"></div>
+            <div class="ai-webgpu-warning" id="aiWebGpuWarning" data-i18n="aiWebGpuUnavailable">
                 WebGPU is not available. AI features require a browser with WebGPU support.
               </div>
               <div class="help-text ai-help-text" data-i18n="aiDownloadNote">

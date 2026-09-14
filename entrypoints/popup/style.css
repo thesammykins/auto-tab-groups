@@ -1623,3 +1623,24 @@ input:checked + .slider:before {
 .hidden {
   display: none;
 }
+
+.linked-tab-help {
+  margin: 8px 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.group-by-toggle-bar {
+  flex-wrap: wrap;
+}
+
+.linked-tab-help button {
+  font: inherit;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

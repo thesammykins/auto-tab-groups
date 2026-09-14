@@ -19,6 +19,7 @@ import {
 } from "../../utils/storage"
 import { checkWebGpuCapability } from "../../utils/WebGpuUtils"
 import type { AiProviderInterface } from "./AiProviderInterface"
+import { APPLE_MODEL_ID, appleFmProvider } from "./AppleFmProvider"
 import { webLlmProvider } from "./WebLlmProvider"
 
 class AiService {
@@ -62,6 +63,11 @@ class AiService {
   }
 
   async setModelId(value: string): Promise<void> {
+    const provider = value === APPLE_MODEL_ID ? "apple" : "webllm"
+    if (provider !== this.provider) {
+      await this.unloadModel()
+      await this.setProvider(provider)
+    }
     this.modelId = value
     await aiModelIdStorage.setValue(value)
   }
@@ -75,7 +81,7 @@ class AiService {
   }
 
   getAvailableModels(): readonly AiModelConfig[] {
-    return this.getActiveProvider().getAvailableModels()
+    return [...webLlmProvider.getAvailableModels(), ...appleFmProvider.getAvailableModels()]
   }
 
   getModelStatus(): AiModelStatusInfo {
@@ -107,10 +113,12 @@ class AiService {
   }
 
   async checkWebGpuSupport(): Promise<WebGpuCapability> {
+    if (this.provider === "apple") return { available: true, reason: null }
     return checkWebGpuCapability()
   }
 
   private getActiveProvider(): AiProviderInterface {
+    if (this.provider === "apple") return appleFmProvider
     if (this.provider === "webllm") {
       return webLlmProvider
     }

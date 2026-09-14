@@ -33,7 +33,7 @@ describe("Groups created by others", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    tabGroupState.updateFromStorage(DEFAULT_STATE)
+    tabGroupState.updateFromStorage({ ...DEFAULT_STATE, groupByMode: "domain" })
     tabGroupState.autoGroupingEnabled = true
     tabGroupState.minimumTabsForGroup = 5
     mocks.getGroupColor.mockResolvedValue(null)
@@ -108,7 +108,11 @@ describe("Groups created by others", () => {
         priority: 1,
         createdAt: new Date(0).toISOString()
       }
-      tabGroupState.updateFromStorage({ ...DEFAULT_STATE, customRules: { "rule-1": rule } })
+      tabGroupState.updateFromStorage({
+        ...DEFAULT_STATE,
+        groupByMode: "domain",
+        customRules: { "rule-1": rule }
+      })
       tabGroupState.minimumTabsForGroup = 5
       groupWithTabs({ id: OWN_GROUP_ID, title: "Work" }, ["https://example.com"])
 
@@ -128,6 +132,7 @@ describe("Groups created by others", () => {
     it("should leave a protected group alone even when we could have built it", async () => {
       tabGroupState.updateFromStorage({
         ...DEFAULT_STATE,
+        groupByMode: "domain",
         protectedGroupTitles: ["Example"]
       })
       tabGroupState.minimumTabsForGroup = 5

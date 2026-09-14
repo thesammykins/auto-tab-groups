@@ -10,6 +10,7 @@ import type { GroupByMode, SortDirection, UserLocale } from "./storage"
  * All possible message actions
  */
 export type MessageAction =
+  | "newTabInGroup"
   | "group"
   | "ungroup"
   | "generateNewColors"
@@ -72,6 +73,7 @@ interface BaseMessage {
  */
 export interface SimpleMessage extends BaseMessage {
   action:
+    | "newTabInGroup"
     | "group"
     | "ungroup"
     | "generateNewColors"
