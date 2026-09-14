@@ -1,3 +1,83 @@
+# Auto Tab Groups — linked browsing fork
+
+This is [thesammykins/auto-tab-groups](https://github.com/thesammykins/auto-tab-groups), an experimental fork of [nitzanpap/auto-tab-groups](https://github.com/nitzanpap/auto-tab-groups), inspired by Dia's linked browsing workflow. It is not affiliated with Dia or Apple. Development branch: `feat/dia-linked-tab-groups`, based on upstream 3.15.2 (`a153e923bcdb1ae6bf50a2f99a7693d0bc368cf6`). The store links and CI badge in the original README below refer to **upstream**, not this fork or its validation.
+
+## What changes in this fork
+
+- **Linked tabs is the default for fresh installs.** Existing saved mode preferences remain intact. Select Linked tabs in the popup/sidebar to opt in on an existing installation. Domain and custom-rule modes remain available.
+- Opening a link in a new tab groups it with its source across websites. Further links join that group. Navigation and manual removal do not reclassify tabs. Unrelated existing tabs are left alone.
+- New groups get a short source-page label and a topic emoji, with 🔗 as the fallback. This works without any model. A new-tab-in-current-group button and configurable keyboard command are included.
+- Temporary groups dissolve when only their original source remains. Manually renamed, protected, and pre-existing groups are preserved. A remaining child stays grouped when its source closes.
+- **Optional Apple Foundation Models naming** re-evaluates the current label when tabs are added or their titles change. It uses titles and hostnames of up to 12 tabs, prioritizing new/changed subjects, to retain a fitting label or suggest one emoji and a more accurate shared topic. Labels are limited to 48 visible characters including emoji and space; prompts favor specific 3–7 word titles, useful detail over padding, and stable wording. The browser may still truncate labels visually depending on tab-strip space. It does not read page bodies or send URL paths, queries, or fragments for naming. It updates only groups created by this session; manual renames take precedence.
+- Experimental SmolLM2 360M and 135M choices are available for existing WebLLM rule/suggestion features. These do not drive automatic linked-group naming. See [model sizes and tradeoffs](docs/LINKED_TABS.md#smaller-models).
+
+## Install and try it
+
+Build from this branch with Bun:
+
+```sh
+bun install --frozen-lockfile
+bun run build:chrome
+python3 scripts/package_preview.py --browser chrome
+```
+
+In a Chromium browser's extension manager, enable Developer mode, choose **Load unpacked**, and select `.output/chrome-mv3`. If using a preview ZIP, extract it first and select the directory containing `manifest.json`. Disable any other installed copy of Auto Tab Groups while testing to avoid competing grouping actions. Fork ZIPs are unpacked previews, not signed store releases.
+
+Firefox builds use `bun run build:firefox`. The linked workflow builds for Firefox, but this preview's browser runtime verification is Chromium-only. Apple AI settings are currently Chromium-only.
+
+### Apple models on macOS 27
+
+Requires an Apple Intelligence-capable Mac, an available system model, and macOS's built-in `fm` command. In Terminal:
+
+```sh
+fm available
+fm serve --host 127.0.0.1 --port 1976
+```
+
+Complete any Apple license/setup steps yourself if prompted. Keep the server running while using Apple naming. In the extension's AI settings, enable AI, select **Apple Foundation Models (macOS 27, built-in server)**, click **Connect**, and allow localhost access and the requested network-rule permission. Then open linked tabs to trigger naming.
+
+There is no companion helper app or separate model download managed by this extension. A local server process is still required: the browser calls Apple's built-in server, not the Swift framework directly. The endpoint is fixed to `http://127.0.0.1:1976`, uses the `system` model, and rejects redirects. The optional browser host permission covers `127.0.0.1` because extension permissions cannot restrict ports; requests from this provider use only port 1976. Apple’s server rejects cross-site browser headers. On Connect, a session-only `declarativeNetRequestWithHostAccess` rule removes `Origin` and `Sec-Fetch-Site` only for POST requests initiated by this extension to the exact completion endpoint. It does not change requests from websites or other extensions. Disconnect removes the rule. This compatibility workaround was verified against the built-in server; it may need revision as macOS changes. See [Chrome’s network-rule API](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest).
+
+Tab titles can contain private information and are passed to that local server when Apple naming is enabled.
+
+**Disconnect** stops this extension from requesting Apple naming; it does not terminate your Terminal process. After a full browser restart, reconnect in AI settings. If the server is unavailable, linked grouping and deterministic emoji labels continue to work, and AI settings display the connection error. Connecting does not retroactively rename all existing groups. Automatic naming is best-effort and debounced; background worker suspension may delay it until another tab event.
+
+Apple API references: [Foundation Models developer tools (WWDC26)](https://developer.apple.com/videos/play/wwdc2026/334/) and local `fm serve --help` / `man fm`. Server compatibility was checked on macOS 27 on September 14, 2026. This is a preview; naming quality needs real browsing feedback.
+
+## Limits and verification
+
+Grouping depends on the browser supplying `openerTabId`. Links opened without it cannot reliably be associated. Pinned sources, cross-window openers, non-web URLs, and blacklisted tabs are excluded. Session metadata survives background worker restarts; restored groups after a full browser restart are treated conservatively as existing groups. This is linked browsing, not semantic clustering of the entire tab strip or a full reproduction of Dia.
+
+Run `bun run code:check`, `bun run test`, and both browser builds. After building Chrome, run `bunx playwright test tests/e2e/linked-tabs.e2e.ts` for isolated linked-workflow coverage. See [implementation notes](docs/LINKED_TABS.md) for the verification scope and smaller-model research. Neither a successful build nor an upstream CI badge establishes Firefox runtime support or model quality. See [fresh public-site naming results](docs/NAMING_EVALUATION.md) for a small practical check and a prompt weakness corrected during it.
+
+## Fork CI and sharing builds
+
+The fork opens on `feat/dia-linked-tab-groups`; `master` retains the upstream baseline. Use the fork’s [Actions page](https://github.com/thesammykins/auto-tab-groups/actions/workflows/ci.yml) for validation and downloadable `unpacked-extension-previews` artifacts (GitHub sign-in required, retained for 14 days).
+
+One workflow runs on active-branch code pushes, pull requests, or manual dispatch. Documentation-only pushes are skipped. It checks code and unit tests, builds Chrome and Firefox once, runs the complete Chromium browser suite against that build, and packages the existing outputs. New pushes cancel obsolete runs. The workflow has read-only repository permission, no persisted checkout credentials, and pinned action revisions. It does not publish to either browser store, create releases, or require the original author’s secrets. Apple inference is tested locally on macOS; CI does not run or install models.
+
+For local ZIPs after building, run `python3 scripts/package_preview.py` (Python 3, standard library only). Outputs and SHA-256 checksums are written under `artifacts/`. Add `--browser chrome` or `--browser firefox` to package one existing build. These unsigned ZIPs are for unpacked previews; the Firefox ZIP is not an AMO store submission. The original `bun run zip:*` commands remain available for upstream-style packaging but are not used by fork CI because they rebuild.
+
+No upstream PRs are opened automatically. Proposals below should be extracted into separate branches based on upstream `master`.
+
+## Proposed upstream contributions
+
+No upstream PR has been submitted. These are proposed extraction boundaries, not claims that the entire fork is ready to merge.
+
+| Priority | Independent contribution | Upstream scope |
+| --- | --- | --- |
+| 1 | Optional opener-based linked grouping | Keep upstream's domain default. Extract the model-free membership, session persistence, serialized tab creation, manual-removal protection, and cleanup behavior with its unit/browser tests. Remove Apple naming calls from this patch. |
+| 2 | New tab in current group | A small standalone command/button improvement using native tab-group APIs. No model or server dependency. Retain configurable shortcuts without assigning a conflicting default. |
+| 3 | Preserve settings during unrelated saves | Background and command state saves currently construct defaults that can overwrite saved AI preferences. Preserve the current settings explicitly. A keyboard-toggle regression test covers the overwrite; add background-message coverage when extracting the patch. This correctness fix needs no model installed or running. |
+| 4 | Serialize background initialization | Review as a narrow race fix, with a concurrent-start regression test before proposing it independently. It supports reliable event handling without any model dependency. |
+| Optional | Deterministic emoji labels | Offer as an opt-in addition to linked grouping after discussing naming preferences upstream. Unicode-safe truncation and preserving existing emoji are useful without inference. |
+
+The Apple provider, localhost permission/setup, automatic model naming, experimental model catalog, and fresh-install default change stay out of these model-independent PRs. Linked-group naming is currently integrated in the linked service, so that service needs a clean model-free extraction for the first PR. Prefer small reviewable patches over submitting the fork wholesale; do not duplicate linked-workflow tests across several PRs.
+
+---
+
+## Original upstream README
+
 # 🔖 Auto Tab Groups (Cross-Browser Extension)
 
 [![CI](https://github.com/nitzanpap/auto-tab-groups/actions/workflows/ci.yml/badge.svg)](https://github.com/nitzanpap/auto-tab-groups/actions/workflows/ci.yml)
