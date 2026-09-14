@@ -10,6 +10,7 @@ const models = () => new Response(JSON.stringify({ data: [{ id: "system" }] }))
 beforeEach(() => {
   vi.clearAllMocks()
   mockBrowser.declarativeNetRequest.updateSessionRules.mockResolvedValue(undefined)
+  mockBrowser.declarativeNetRequest.getSessionRules.mockResolvedValue([])
   provider = new AppleFmProvider()
   saved = {}
   vi.stubGlobal("fetch", fetchMock)
@@ -46,6 +47,60 @@ describe("Apple built-in server", () => {
     fetchMock.mockResolvedValueOnce(models())
     await provider.loadModel("apple-system")
     expect(provider.getStatus()).toBe("ready")
+  })
+  it("reuses the exact installed session rule after a worker restart", async () => {
+    fetchMock.mockImplementation(async () => models())
+    await provider.loadModel("apple-system")
+    const rule = mockBrowser.declarativeNetRequest.updateSessionRules.mock.calls[0][0].addRules![0]
+    mockBrowser.declarativeNetRequest.getSessionRules.mockResolvedValue([{ ...rule, priority: 1 }])
+    mockBrowser.declarativeNetRequest.updateSessionRules.mockClear()
+    const restarted = new AppleFmProvider()
+    await restarted.loadModel("apple-system")
+    expect(restarted.getStatus()).toBe("ready")
+    expect(mockBrowser.declarativeNetRequest.updateSessionRules).not.toHaveBeenCalled()
+  })
+  it("replaces a rule with a broader initiator scope", async () => {
+    fetchMock.mockImplementation(async () => models())
+    await provider.loadModel("apple-system")
+    const rule = mockBrowser.declarativeNetRequest.updateSessionRules.mock.calls[0][0].addRules![0]
+    mockBrowser.declarativeNetRequest.getSessionRules.mockResolvedValue([
+      {
+        ...rule,
+        condition: { ...rule.condition, initiatorDomains: undefined }
+      }
+    ])
+    await provider.loadModel("apple-system")
+    expect(mockBrowser.declarativeNetRequest.updateSessionRules).toHaveBeenCalledTimes(2)
+  })
+  it("shares one connection attempt between simultaneous callers", async () => {
+    fetchMock.mockImplementation(async () => models())
+    await Promise.all([provider.loadModel("apple-system"), provider.loadModel("apple-system")])
+    expect(mockBrowser.declarativeNetRequest.updateSessionRules).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+  it("disconnects after an in-flight connection finishes", async () => {
+    fetchMock.mockImplementation(async () => models())
+    const connecting = provider.loadModel("apple-system")
+    const disconnecting = provider.unloadModel()
+    await Promise.all([connecting, disconnecting])
+    expect(provider.getStatus()).toBe("idle")
+    expect(saved.appleFmConnected).toBe(false)
+    expect(mockBrowser.declarativeNetRequest.updateSessionRules).toHaveBeenLastCalledWith({
+      removeRuleIds: [1976]
+    })
+  })
+  it("bounds a stalled rule read without starting another mutation", async () => {
+    vi.useFakeTimers()
+    mockBrowser.declarativeNetRequest.getSessionRules.mockImplementationOnce(
+      () => new Promise(() => {})
+    )
+    const attempt = expect(provider.loadModel("apple-system")).rejects.toThrow(
+      "browser did not finish"
+    )
+    await vi.advanceTimersByTimeAsync(10000)
+    await attempt
+    expect(provider.getStatus()).toBe("error")
+    expect(mockBrowser.declarativeNetRequest.updateSessionRules).not.toHaveBeenCalled()
   })
   it("requires explicit localhost permission before making requests", async () => {
     mockBrowser.permissions.contains.mockResolvedValue(false)

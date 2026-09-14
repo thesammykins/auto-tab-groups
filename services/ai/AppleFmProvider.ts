@@ -19,15 +19,12 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-// Some Chromium-based browsers expose DNR but never settle rule updates.
-// Bound this separately from fetch so the popup can recover and report the cause.
-async function updateConnectionRule(
-  rules: Parameters<typeof browser.declarativeNetRequest.updateSessionRules>[0]
-): Promise<void> {
+// Bound native browser calls separately from fetch: some browsers never settle them.
+async function connectionRuleOperation<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    await Promise.race([
-      browser.declarativeNetRequest.updateSessionRules(rules),
+    return await Promise.race([
+      operation,
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () =>
@@ -45,9 +42,30 @@ async function updateConnectionRule(
   }
 }
 
+type ConnectionRule = NonNullable<
+  Parameters<typeof browser.declarativeNetRequest.updateSessionRules>[0]["addRules"]
+>[number]
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`
+  if (value && typeof value === "object")
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`)
+      .join(",")}}`
+  return JSON.stringify(value)
+}
+
+function sameConnectionRule(actual: ConnectionRule, expected: ConnectionRule): boolean {
+  // Chromium may materialize the default priority on readback. All other fields
+  // must match, including scope: never reuse a broader or partially edited rule.
+  return canonical({ priority: 1, ...actual }) === canonical({ priority: 1, ...expected })
+}
+
 export class AppleFmProvider implements AiProviderInterface {
   private status: AiModelStatus = "idle"
   private error: string | null = null
+  private connection: Promise<void> | null = null
   getStatus(): AiModelStatus {
     return this.status
   }
@@ -100,6 +118,16 @@ export class AppleFmProvider implements AiProviderInterface {
 
   async loadModel(modelId: string): Promise<void> {
     if (modelId !== APPLE_MODEL_ID) throw new Error("Unknown Apple model")
+    if (this.connection) return this.connection
+    this.connection = this.connect()
+    try {
+      await this.connection
+    } finally {
+      this.connection = null
+    }
+  }
+
+  private async connect(): Promise<void> {
     this.status = "loading"
     this.error = null
     try {
@@ -113,27 +141,35 @@ export class AppleFmProvider implements AiProviderInterface {
       // fm rejects browser Origin/Fetch-Metadata headers. Limit compatibility
       // strictly to this extension's POST to its fixed loopback completion endpoint;
       // web pages, other extensions and every other URL remain unaffected.
-      await updateConnectionRule({
-        removeRuleIds: [RULE_ID],
-        addRules: [
-          {
-            id: RULE_ID,
-            action: {
-              type: "modifyHeaders",
-              requestHeaders: [
-                { header: "origin", operation: "remove" },
-                { header: "sec-fetch-site", operation: "remove" }
-              ]
-            },
-            condition: {
-              regexFilter: "^http://127\\.0\\.0\\.1:1976/v1/chat/completions$",
-              initiatorDomains: [browser.runtime.id],
-              requestMethods: ["post"],
-              resourceTypes: ["xmlhttprequest"]
-            }
-          }
-        ]
-      })
+      const rule: ConnectionRule = {
+        id: RULE_ID,
+        action: {
+          type: "modifyHeaders",
+          requestHeaders: [
+            { header: "origin", operation: "remove" },
+            { header: "sec-fetch-site", operation: "remove" }
+          ]
+        },
+        condition: {
+          regexFilter: "^http://127\\.0\\.0\\.1:1976/v1/chat/completions$",
+          initiatorDomains: [browser.runtime.id],
+          requestMethods: ["post"],
+          resourceTypes: ["xmlhttprequest"]
+        }
+      }
+      // Session rules survive service-worker suspension. Replacing the same rule
+      // on every reconnect needlessly re-enters the browser's update machinery.
+      const existing = await connectionRuleOperation(
+        browser.declarativeNetRequest.getSessionRules()
+      )
+      if (!existing.some(candidate => sameConnectionRule(candidate, rule))) {
+        await connectionRuleOperation(
+          browser.declarativeNetRequest.updateSessionRules({
+            removeRuleIds: [RULE_ID],
+            addRules: [rule]
+          })
+        )
+      }
       const result = await this.request("/v1/models")
       if (!Array.isArray(result.data) || !result.data.some(item => object(item).id === "system"))
         throw new Error("Apple system model is unavailable")
@@ -147,11 +183,22 @@ export class AppleFmProvider implements AiProviderInterface {
   }
 
   async unloadModel(): Promise<void> {
+    // Finish a pending connection before removing its rule so it cannot reconnect
+    // after the user disconnects. Failed connections still need cleanup.
+    if (this.connection) {
+      try {
+        await this.connection
+      } catch {
+        // The connection error is already recorded; continue disconnecting.
+      }
+    }
     // Disconnect this extension; the OS owns the model and the user's server.
     this.status = "idle"
     this.error = null
     await browser.storage.session.set({ appleFmConnected: false })
-    await updateConnectionRule({ removeRuleIds: [RULE_ID] })
+    await connectionRuleOperation(
+      browser.declarativeNetRequest.updateSessionRules({ removeRuleIds: [RULE_ID] })
+    )
   }
 
   async isConnected(): Promise<boolean> {

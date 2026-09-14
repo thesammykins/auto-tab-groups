@@ -5,7 +5,10 @@ import { vi } from "vitest"
 
 // Mock the browser API globally
 const mockBrowser = {
-  declarativeNetRequest: { updateSessionRules: vi.fn().mockResolvedValue(undefined) },
+  declarativeNetRequest: {
+    updateSessionRules: vi.fn().mockResolvedValue(undefined),
+    getSessionRules: vi.fn().mockResolvedValue([])
+  },
   permissions: {
     contains: vi.fn().mockResolvedValue(false),
     request: vi.fn().mockResolvedValue(false)
