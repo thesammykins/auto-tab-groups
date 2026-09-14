@@ -103,13 +103,13 @@ test("manual ungrouping survives navigation and a background worker restart", as
     .toBe(-1)
 })
 
-test("settings show linked mode and the smaller models", async () => {
+test("settings show linked mode and the smaller models", async ({ browserName }, testInfo) => {
   await popup.setViewportSize({ width: 460, height: 850 })
   await popup.reload()
   await expect(popup.locator('[data-value="linked"]')).toHaveClass(/active/)
   await expect(popup.getByRole("button", { name: "New tab in current group" })).toBeVisible()
   await popup.screenshot({
-    path: "/private/tmp/auto-tab-popup.png",
+    path: testInfo.outputPath(`${browserName}-popup.png`),
     fullPage: true,
     animations: "disabled"
   })
