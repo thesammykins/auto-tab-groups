@@ -3,26 +3,26 @@
 Branch: `feat/dia-linked-tab-groups`. Based on upstream commit
 `a153e923bcdb1ae6bf50a2f99a7693d0bc368cf6` (3.15.2).
 
-Fresh installations default to **Linked tabs**. Existing saved mode preferences
-are retained; select Linked tabs in the popup or sidebar to try it.
+Fresh installations default to **Linked + domains**. Existing saved mode preferences
+are retained; select Linked + domains in the popup or sidebar to try it.
 
 - Command/Ctrl-click a web link to group it with its source. Subsequent links
   from any member join the same group, even across websites.
 - Navigating, redirecting, or manually removing a tab does not reclassify it.
-- The source page's title supplies the initial label, with a topic emoji inferred from that title and hostname (or 🔗 as a fallback). Existing leading emoji are preserved. Renaming keeps the group. Existing groups are not retroactively renamed.
+- The source page's title supplies the initial label, with a topic emoji inferred from that title and hostname (or 🔗 as a fallback). Existing leading emoji are preserved. Renaming keeps the group. Automatic naming does not retroactively rename existing groups. AI settings now offer an explicit Existing group picker and Refresh name action, including for manually named groups. Protected groups are excluded from renaming.
 - A temporary group dissolves when only its original tab remains. A remaining
   child stays grouped if the original closes. Protected and existing manual
   groups are preserved during automatic cleanup.
 - New tab in current group is available in the popup, sidebar and configurable
   keyboard shortcuts. No shortcut is assigned automatically.
-- Pinned sources, cross-window openers, non-web URLs and blacklisted links do not
-  create groups. Ordinary grouping rules are used only in the other modes.
-- Group Tabs is unavailable in Linked tabs mode: it organizes new browsing, not
-  pre-existing tabs. Ungroup All remains an explicit action.
+- Independent tabs fall back to the existing base-domain matcher within their window. Subdomains may match. A new tab can join one unambiguous automatic group whose members all match that domain, or form a group with ungrouped same-domain peers. It never merges existing groups or adds domain matches to manually named/protected groups or mixed-domain projects.
+- Pinned tabs, non-web URLs and blacklisted tabs are excluded. When an opener is pinned, closed or in another window, same-window domain fallback can still apply to its child. Ordinary custom grouping rules remain in the other modes.
+- Group Tabs now organizes existing ungrouped tabs by domain in the current window, even when automatic grouping is paused. Existing groups remain intact. Ungroup All remains an explicit action.
+- Manually detached tabs are excluded from domain fallback for this browser session, including after worker restarts. Opener relationships still take priority for new links opened from them.
 
 No page content is injected or collected for this feature. The browser's opener
 relationship is the signal, so programmatic new windows with an opener can also
-qualify. Links opened without an opener cannot reliably be associated.
+qualify. Without an opener, only domain matching applies; unrelated cross-site tasks are not inferred.
 
 Membership metadata lives in session storage. It survives service-worker
 restarts. After a full browser restart, restored groups are treated as existing

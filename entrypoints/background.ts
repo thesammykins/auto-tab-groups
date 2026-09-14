@@ -125,8 +125,24 @@ export default defineBackground(() => {
             result = { success: true }
             break
 
+          case "getNamingGroups": {
+            const groups = await browser.tabGroups.query({
+              windowId: browser.windows.WINDOW_ID_CURRENT
+            })
+            result = {
+              groups: groups.map(group => ({
+                id: group.id,
+                title: group.title || "Untitled group"
+              }))
+            }
+            break
+          }
+          case "renameExistingGroup":
+            result = { title: await linkedTabService.renameExistingGroup(msg.groupId) }
+            break
           case "group":
-            await tabGroupService.groupAllTabsManually()
+            if (tabGroupState.groupByMode === "linked") await linkedTabService.groupExistingTabs()
+            else await tabGroupService.groupAllTabsManually()
             result = { success: true }
             break
 
@@ -882,7 +898,7 @@ export default defineBackground(() => {
     try {
       await ensureStateLoaded()
       if (tabGroupState.groupByMode === "linked") {
-        await linkedTabService.onUpdated(tabId)
+        await linkedTabService.onUpdated(tabId, changeInfo.groupId === -1)
         if (Object.hasOwn(changeInfo, "groupId")) await linkedTabService.cleanup()
         return
       }

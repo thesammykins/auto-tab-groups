@@ -64,14 +64,14 @@
           <div class="toggle-container">
             <span data-i18n="settingGroupBy">Group by</span>
             <div class="group-by-toggle-bar">
-              <button class="toggle-option" data-value="linked">Linked tabs</button>
+              <button class="toggle-option" data-value="linked">Linked + domains</button>
               <button class="toggle-option" data-value="rules-only" data-i18n="settingGroupByRulesOnly">Rules only</button>
               <button class="toggle-option active" data-value="domain" data-i18n="settingGroupByDomain">Domain</button>
               <button class="toggle-option" data-value="subdomain" data-i18n="settingGroupBySubdomain">Sub-domain</button>
             </div>
           </div>
           <div class="linked-tab-help">
-            <p>Linked tabs keeps new links with their source. Rename a group to keep it.</p>
+            <p>Links stay with their source. Independent tabs group by domain. Group Tabs organizes existing ungrouped tabs; manual groups stay intact.</p>
             <button id="newTabInGroupBtn" type="button">New tab in current group</button>
           </div>
           <div class="toggle-container">
@@ -244,6 +244,14 @@
                   Suggest Groups
                 </button>
                 <div class="ai-suggest-status" id="aiSuggestStatus"></div>
+              <div id="aiRenameSection" class="ai-suggest-section">
+                <label for="aiRenameGroupSelect">Existing group</label>
+                <select id="aiRenameGroupSelect" class="ai-select ai-rename-select" aria-label="Existing group"></select>
+                <button id="aiRefreshGroupsButton" type="button" class="button secondaryButton">Refresh group list</button>
+                <button id="aiRenameGroupButton" type="button" class="button ai-suggest-button" disabled>Refresh name</button>
+                <p>Use the current tabs to retain a fitting name or suggest a better name and emoji. Protected groups are not renamed.</p>
+                <div id="aiRenameStatus" class="ai-suggest-status" role="status"></div>
+              </div>
                 <div class="ai-suggestions-container" id="aiSuggestionsContainer"></div>
               </div>
             </div>

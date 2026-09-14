@@ -30,3 +30,10 @@ These are smoke tests, not a benchmark or a guarantee of ideal names. Coffee equ
 ## Automated checks
 
 989 unit tests passed, including naming length, invalid responses, permission boundaries, retained labels, stale-result protection, worker reconnection and settings preservation. Six Chromium linked-workflow tests passed. Type/format/lint checks and Chrome/Firefox builds passed. Firefox runtime behavior and the interactive optional-permission prompt remain unverified.
+
+
+## Hybrid mode and explicit naming follow-up
+
+September 14, 2026: a disposable Chromium profile loaded real MDN Promise documentation and Chrome's tabGroups API documentation. They were manually grouped under `Old research`, with automatic grouping paused. The actual AI settings group picker and **Refresh name** button called the built-in Apple server and renamed this pre-existing group to **🔬 Promise and browser API research**. The model remained Ready. The test profile pre-granted the same optional localhost/network-rule permissions; it did not test a fresh permission prompt. This verifies the explicit naming UI and inference path on those public pages, not broad naming quality or the final hybrid build in Aside.
+
+Hybrid browser regressions cover independent base-domain tabs, a detached tab staying out when a later domain tab opens, and the Group Tabs button organizing existing ungrouped tabs while preserving a manually created group. Unit coverage also checks opener precedence, mixed-project exclusion, deferred new-tab navigation, explicit renaming without taking group ownership, and stale-result rejection.

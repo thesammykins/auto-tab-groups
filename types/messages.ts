@@ -10,6 +10,8 @@ import type { GroupByMode, SortDirection, UserLocale } from "./storage"
  * All possible message actions
  */
 export type MessageAction =
+  | "renameExistingGroup"
+  | "getNamingGroups"
   | "newTabInGroup"
   | "group"
   | "ungroup"
@@ -64,6 +66,11 @@ export type MessageAction =
 /**
  * Base message structure
  */
+export interface RenameExistingGroupMessage {
+  action: "renameExistingGroup"
+  groupId: number
+}
+
 interface BaseMessage {
   action: MessageAction
 }
@@ -73,6 +80,7 @@ interface BaseMessage {
  */
 export interface SimpleMessage extends BaseMessage {
   action:
+    | "getNamingGroups"
     | "newTabInGroup"
     | "group"
     | "ungroup"
@@ -277,6 +285,7 @@ export interface ImportRulesMessage extends BaseMessage {
  * Union of all possible messages
  */
 export type Message =
+  | RenameExistingGroupMessage
   | SimpleMessage
   | ToggleAutoGroupMessage
   | ToggleGroupNewTabsMessage

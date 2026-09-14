@@ -1644,3 +1644,8 @@ input:checked + .slider:before {
   opacity: 0.5;
   cursor: default;
 }
+
+.ai-rename-select {
+  width: 100%;
+  max-width: none;
+}

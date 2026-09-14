@@ -3,6 +3,7 @@ import type { Browser } from "wxt/browser"
 import { aiService } from "../services/ai/AiService"
 import { appleFmProvider } from "../services/ai/AppleFmProvider"
 import { LinkedTabService } from "../services/LinkedTabService"
+import { rulesService } from "../services/RulesService"
 import { tabGroupState } from "../services/TabGroupState"
 import { DEFAULT_STATE } from "../types/storage"
 import { mockBrowser } from "./setup"
@@ -59,7 +60,11 @@ beforeEach(() => {
     return { ...result }
   })
   mockBrowser.tabs.query.mockImplementation(async query =>
-    [...tabs.values()].filter(t => query.groupId === undefined || t.groupId === query.groupId)
+    [...tabs.values()].filter(
+      t =>
+        (query.groupId === undefined || t.groupId === query.groupId) &&
+        (query.windowId === undefined || t.windowId === query.windowId)
+    )
   )
   mockBrowser.tabGroups.get.mockImplementation(async id => ({ ...groups.get(id)! }))
   mockBrowser.tabGroups.query.mockImplementation(async () => [...groups.values()])
@@ -243,4 +248,153 @@ it("retains a fitting label without rewriting the browser group", async () => {
   expect(complete).toHaveBeenCalledTimes(2)
   expect(complete.mock.calls[1][0].messages[1].content).toContain("📚 Swift learning")
   expect(mockBrowser.tabGroups.update).toHaveBeenCalledTimes(updates)
+})
+
+describe("Linked browsing with domain fallback", () => {
+  it("excludes pinned and blacklisted domain peers", async () => {
+    tabs.get(1)!.url = "https://example.com/pinned"
+    tabs.get(1)!.pinned = true
+    tabs.get(2)!.url = "https://example.com/blocked"
+    tabs.set(4, { ...tab(4), url: "https://example.com/new" })
+    vi.mocked(rulesService.findBlacklistMatch).mockImplementation(async url =>
+      url.includes("blocked")
+        ? {
+            id: "blocked",
+            name: "Blocked",
+            domains: ["example.com/blocked"],
+            color: "grey",
+            enabled: true,
+            priority: 1,
+            isBlacklist: true,
+            createdAt: "2026-09-14",
+            effectiveGroupName: "Blocked",
+            matchInfo: { matched: true, extractedValues: {}, groupName: "Blocked" }
+          }
+        : null
+    )
+    await service.onCreated(tabs.get(4)!)
+    expect(groups.size).toBe(0)
+    vi.mocked(rulesService.findBlacklistMatch).mockResolvedValue(null)
+  })
+  it("does not add domain matches to a manually named automatic group", async () => {
+    tabs.get(1)!.url = "https://example.com/one"
+    tabs.get(2)!.url = "https://example.com/two"
+    await service.onCreated(tabs.get(2)!)
+    groups.get(10)!.title = "My project"
+    await service.onGroupUpdated(groups.get(10)!)
+    tabs.set(4, { ...tab(4), url: "https://example.com/new" })
+    await service.onCreated(tabs.get(4)!)
+    expect(tabs.get(4)!.groupId).toBe(-1)
+  })
+  it("waits through a browser extension new-tab page before matching a domain", async () => {
+    tabs.set(4, { ...tab(4), url: "chrome-extension://browser/newtab.html" })
+    await service.onCreated(tabs.get(4)!)
+    tabs.get(4)!.url = tabs.get(1)!.url
+    service = new LinkedTabService()
+    await service.onUpdated(4)
+    expect(tabs.get(4)!.groupId).toBe(tabs.get(1)!.groupId)
+    expect(tabs.get(4)!.groupId).not.toBe(-1)
+  })
+  it("uses a pending destination for independently opened tabs", async () => {
+    tabs.set(4, { ...tab(4), url: "about:blank", pendingUrl: tabs.get(1)!.url })
+    await service.onCreated(tabs.get(4)!)
+    expect(tabs.get(4)!.groupId).not.toBe(-1)
+  })
+  it("groups independently opened tabs by domain without touching other windows", async () => {
+    tabs.get(1)!.url = "https://docs.example.com/one"
+    tabs.set(4, { ...tab(4), url: "https://www.example.com/two" })
+    tabs.set(5, { ...tab(5), url: "https://example.com/other", windowId: 2 })
+    await service.onCreated(tabs.get(4)!)
+    expect(tabs.get(1)!.groupId).toBe(10)
+    expect(tabs.get(4)!.groupId).toBe(10)
+    expect(tabs.get(5)!.groupId).toBe(-1)
+  })
+  it("uses a cross-domain opener before an available domain match", async () => {
+    tabs.set(4, { ...tab(4), url: tabs.get(2)!.url })
+    await service.onCreated(tabs.get(2)!)
+    expect(tabs.get(1)!.groupId).toBe(tabs.get(2)!.groupId)
+    expect(tabs.get(4)!.groupId).toBe(-1)
+  })
+  it("extends a same-domain automatic group but does not absorb a mixed project", async () => {
+    tabs.get(1)!.url = "https://example.com/one"
+    tabs.set(4, { ...tab(4), url: "https://example.com/two" })
+    await service.onCreated(tabs.get(4)!)
+    tabs.set(5, { ...tab(5), url: "https://example.com/three" })
+    await service.onCreated(tabs.get(5)!)
+    expect(tabs.get(5)!.groupId).toBe(10)
+    tabs.get(1)!.url = "https://different.test/"
+    tabs.set(6, { ...tab(6), url: "https://example.com/four" })
+    await service.onCreated(tabs.get(6)!)
+    expect(tabs.get(6)!.groupId).toBe(-1)
+  })
+  it("does not recapture a manually detached tab on a future domain match", async () => {
+    tabs.get(1)!.url = "https://example.com/one"
+    tabs.set(4, { ...tab(4), url: "https://example.com/two" })
+    await service.onCreated(tabs.get(4)!)
+    tabs.get(4)!.groupId = -1
+    await service.onUpdated(4, true)
+    service = new LinkedTabService()
+    tabs.set(5, { ...tab(5), url: "https://example.com/three" })
+    await service.onCreated(tabs.get(5)!)
+    expect(tabs.get(4)!.groupId).toBe(-1)
+  })
+  it("can explicitly organize existing ungrouped tabs while preserving manual groups", async () => {
+    tabs.get(1)!.url = "https://example.com/one"
+    tabs.get(2)!.url = "https://example.com/two"
+    tabs.get(3)!.url = "https://example.com/three"
+    tabs.get(3)!.groupId = 40
+    groups.set(40, {
+      id: 40,
+      title: "My project",
+      color: "red",
+      windowId: 1,
+      collapsed: false,
+      shared: false
+    })
+    await service.groupExistingTabs()
+    expect(tabs.get(1)!.groupId).toBe(tabs.get(2)!.groupId)
+    expect(tabs.get(1)!.groupId).not.toBe(-1)
+    expect(tabs.get(3)!.groupId).toBe(40)
+    expect(groups.get(40)!.title).toBe("My project")
+  })
+})
+
+describe("Explicit naming of existing groups", () => {
+  beforeEach(() => {
+    tabs.get(1)!.groupId = 40
+    groups.set(40, {
+      id: 40,
+      title: "Old label",
+      color: "red",
+      windowId: 1,
+      collapsed: false,
+      shared: false
+    })
+    vi.mocked(aiService.isEnabled).mockReturnValue(true)
+  })
+  it("renames an existing group on request without taking automatic ownership", async () => {
+    const complete = vi.spyOn(aiService, "complete").mockResolvedValue({
+      content: '{"emoji":"📚","title":"Research notes"}',
+      finishReason: "stop"
+    })
+    expect(await service.renameExistingGroup(40)).toBe("📚 Research notes")
+    expect(groups.get(40)!.title).toBe("📚 Research notes")
+    await service.nameGroup(40)
+    expect(complete).toHaveBeenCalledTimes(1)
+    expect((saved.linkedTabSession as { groups: object }).groups).not.toHaveProperty("40")
+  })
+  it("does not rename a protected group even on an explicit request", async () => {
+    tabGroupState.protectedGroupTitles = ["Old label"]
+    const complete = vi.spyOn(aiService, "complete")
+    await expect(service.renameExistingGroup(40)).rejects.toThrow("protected")
+    expect(complete).not.toHaveBeenCalled()
+  })
+  it("discards an explicit rename if membership changes while naming", async () => {
+    vi.spyOn(aiService, "complete").mockImplementation(async () => {
+      tabs.get(2)!.groupId = 40
+      return { content: '{"emoji":"📚","title":"Stale name"}', finishReason: "stop" }
+    })
+    await expect(service.renameExistingGroup(40)).rejects.toThrow("changed")
+    expect(groups.get(40)!.title).toBe("Old label")
+  })
 })

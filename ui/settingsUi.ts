@@ -172,8 +172,10 @@ function updateCollapseDelayVisibility(enabled: boolean): void {
 // Update group by toggle UI
 function updateGroupByToggle(mode: string): void {
   const linked = mode === "linked"
-  groupButton.disabled = linked
-  groupButton.title = linked ? "Linked tabs groups new links as you open them." : ""
+  groupButton.disabled = false
+  groupButton.title = linked
+    ? "Group existing ungrouped tabs by domain; preserve existing groups."
+    : ""
   for (const input of [
     systemGroupToggle,
     groupNewTabsToggle,
@@ -1087,6 +1089,61 @@ indexGroupTitlesToggle.addEventListener("change", event => {
 })
 
 // --- AI Features ---
+const aiRenameGroupSelect = document.getElementById("aiRenameGroupSelect") as HTMLSelectElement
+const aiRenameGroupButton = document.getElementById("aiRenameGroupButton") as HTMLButtonElement
+const aiRenameStatus = document.getElementById("aiRenameStatus") as HTMLDivElement
+let namingExistingGroup = false
+
+async function refreshNamingGroups(): Promise<void> {
+  const selected = aiRenameGroupSelect.value
+  const response = await sendMessage<{
+    groups?: Array<{ id: number; title: string }>
+    error?: string
+  }>({ action: "getNamingGroups" })
+  if (response?.error) throw new Error(response.error)
+  aiRenameGroupSelect.replaceChildren()
+  for (const group of response?.groups || []) {
+    const option = document.createElement("option")
+    option.value = String(group.id)
+    option.textContent = group.title
+    aiRenameGroupSelect.appendChild(option)
+  }
+  if ([...aiRenameGroupSelect.options].some(option => option.value === selected))
+    aiRenameGroupSelect.value = selected
+  if (!aiRenameGroupSelect.options.length)
+    aiRenameStatus.textContent = "No tab groups in this window."
+}
+
+async function handleRenameExistingGroup(): Promise<void> {
+  if (!aiRenameGroupSelect.value || namingExistingGroup) return
+  namingExistingGroup = true
+  aiRenameGroupButton.disabled = true
+  aiRenameStatus.textContent = "Evaluating this group's current tabs…"
+  aiRenameStatus.className = "ai-suggest-status loading"
+  try {
+    const response = await sendMessage<{ title?: string; error?: string }>({
+      action: "renameExistingGroup",
+      groupId: Number(aiRenameGroupSelect.value)
+    })
+    if (response?.error || !response?.title)
+      throw new Error(response?.error || "No group name returned.")
+    aiRenameStatus.textContent = `Group name: ${response.title}`
+    aiRenameStatus.className = "ai-suggest-status"
+    await refreshNamingGroups()
+  } catch (error) {
+    aiRenameStatus.textContent =
+      error instanceof Error ? error.message : "Could not refresh the group name."
+    aiRenameStatus.className = "ai-suggest-status error"
+  } finally {
+    namingExistingGroup = false
+    await initializeAiSection()
+  }
+}
+
+aiRenameGroupButton?.addEventListener("click", handleRenameExistingGroup)
+document.getElementById("aiRefreshGroupsButton")?.addEventListener("click", () => {
+  initializeAiSection().catch(error => console.error("Could not refresh groups", error))
+})
 
 function toggleAiSection(): void {
   aiSectionExpanded = !aiSectionExpanded
@@ -1142,6 +1199,7 @@ async function initializeAiSection(): Promise<void> {
       updateAiBadge(response.settings.aiEnabled)
     }
 
+    await refreshNamingGroups()
     if (response?.modelStatus) {
       updateAiModelStatus(response.modelStatus)
     }
@@ -1184,12 +1242,21 @@ function updateAiModelStatus(modelStatus: {
 }): void {
   const { status, progress, error } = modelStatus
   const apple = aiModelSelect.value === "apple-system"
+  document.getElementById("aiRenameSection")?.classList.toggle("hidden", !apple)
+  aiRenameGroupButton.disabled =
+    !apple ||
+    status !== "ready" ||
+    !aiEnabledToggle.checked ||
+    namingExistingGroup ||
+    !aiRenameGroupSelect.value
   const connectionMessage = document.getElementById("aiConnectionMessage")
   if (connectionMessage)
     connectionMessage.textContent =
       error ||
       (apple
-        ? "Run fm serve --host 127.0.0.1 --port 1976 in Terminal, then Connect. New linked groups get AI names from their titles and hostnames. No page text is read."
+        ? status === "ready"
+          ? "Connected to Apple’s local model. Automatic groups get AI names from titles and hostnames. Use Refresh name for existing groups. No page text is read."
+          : "Run fm serve --host 127.0.0.1 --port 1976 in Terminal, then Connect. No page text is read."
         : "")
   document.querySelector('[data-i18n="aiDownloadNote"]')?.classList.toggle("hidden", apple)
 
