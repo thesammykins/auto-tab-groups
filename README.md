@@ -21,7 +21,7 @@ bun run build:chrome
 python3 scripts/package_preview.py --browser chrome
 ```
 
-In a Chromium browser's extension manager, enable Developer mode, choose **Load unpacked**, and select `.output/chrome-mv3`. If using a preview ZIP, extract it first and select the directory containing `manifest.json`. Disable any other installed copy of Auto Tab Groups while testing to avoid competing grouping actions. Fork ZIPs are unpacked previews, not signed store releases.
+In a Chromium browser's extension manager, enable Developer mode, choose **Load unpacked**, and select `.output/chrome-mv3`. If using a preview ZIP, extract it first and select the directory containing `manifest.json`. Disable any other installed copy of Auto Tab Groups while testing to avoid competing grouping actions. Fork ZIPs are unpacked previews, not signed store releases. The installed name is **Auto Tab Groups — Linked**, and Firefox uses its own fork add-on ID so it does not reuse the author’s store identity.
 
 Firefox builds use `bun run build:firefox`. The linked workflow builds for Firefox, but this preview's browser runtime verification is Chromium-only. Apple AI settings are currently Chromium-only.
 

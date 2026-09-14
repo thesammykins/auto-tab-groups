@@ -34,7 +34,7 @@ export default defineConfig({
   }),
   manifest: ({ browser }) => {
     const baseManifest = {
-      name: "__MSG_extensionName__",
+      name: "Auto Tab Groups — Linked",
       description: "__MSG_extensionDescription__",
       default_locale: "en",
       author: "Nitzan Papini",
@@ -91,7 +91,7 @@ export default defineConfig({
         ...baseManifest,
         browser_specific_settings: {
           gecko: {
-            id: "{442789cf-4ff6-4a85-bf5b-53aa3282f1a2}",
+            id: "auto-tab-groups-linked@thesammykins",
             strict_min_version: "142.0",
             data_collection_permissions: {
               required: ["none"]
